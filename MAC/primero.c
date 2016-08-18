@@ -16,8 +16,6 @@ int main(void) {
         return -1;
    }
 
-   printf("Hola\n");
-
    for(i=0; i < 3; i++) {
       recv_length = recv(sockfd, buffer, 8000, 0);
       printf("Got some bytes : %d\n", recv_length);
