@@ -1,30 +1,68 @@
-#include <stdio.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>    
-#include <sys/socket.h>
-#include <net/if.h>
+       #include <arpa/inet.h>
+       #include <sys/socket.h>
+       #include <netdb.h>
+       #include <ifaddrs.h>
+       #include <stdio.h>
+       #include <stdlib.h>
+       #include <unistd.h>
+       #include <linux/if_link.h>
 
-int main( int argc, char *argv[] )
-{
-    int s;
-    struct ifreq buffer;
+       int main(int argc, char *argv[])
+       {
+           struct ifaddrs *ifaddr, *ifa;
+           int family, s, n;
+           char host[NI_MAXHOST];
 
-    s = socket(PF_INET, SOCK_DGRAM, 0);
+           if (getifaddrs(&ifaddr) == -1) {
+               perror("getifaddrs");
+               exit(EXIT_FAILURE);
+           }
 
-    memset(&buffer, 0x00, sizeof(buffer));
+           /* Walk through linked list, maintaining head pointer so we
+              can free list later */
 
-    strcpy(buffer.ifr_name, "eth0");
+           for (ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+               if (ifa->ifa_addr == NULL)
+                   continue;
 
-    ioctl(s, SIOCGIFHWADDR, &buffer);
+               family = ifa->ifa_addr->sa_family;
 
-    close(s);
+               /* Display interface name and family (including symbolic
+                  form of the latter for the common families) */
 
-    for( s = 0; s < 6; s++ )
-    {
-    	printf("%.2X ", (unsigned char)buffer.ifr_hwaddr.sa_data[s]);
-    }
+               printf("%-8s %s (%d)\n",
+                      ifa->ifa_name,
+                      (family == AF_PACKET) ? "AF_PACKET" :
+                      (family == AF_INET) ? "AF_INET" :
+                      (family == AF_INET6) ? "AF_INET6" : "???",
+                      family);
 
-    printf("\n");
+               /* For an AF_INET* interface address, display the address */
 
-    return 0;
-}
+               if (family == AF_INET || family == AF_INET6) {
+                   s = getnameinfo(ifa->ifa_addr,
+                           (family == AF_INET) ? sizeof(struct sockaddr_in) :
+                                                 sizeof(struct sockaddr_in6),
+                           host, NI_MAXHOST,
+                           NULL, 0, NI_NUMERICHOST);
+                   if (s != 0) {
+                       printf("getnameinfo() failed: %s\n", gai_strerror(s));
+                       exit(EXIT_FAILURE);
+                   }
+
+                   printf("\t\taddress: <%s>\n", host);
+
+               } /*else if (family == AF_PACKET && ifa->ifa_data != NULL) {
+                   struct rtnl_link_stats *stats = ifa->ifa_data;
+
+                   printf("\t\ttx_packets = %10u; rx_packets = %10u\n"
+                          "\t\ttx_bytes   = %10u; rx_bytes   = %10u\n",
+                          stats->tx_packets, stats->rx_packets,
+                          stats->tx_bytes, stats->rx_bytes);
+               }*/
+           }
+
+           freeifaddrs(ifaddr);
+           exit(EXIT_SUCCESS);
+       }
+
