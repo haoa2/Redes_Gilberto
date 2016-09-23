@@ -99,7 +99,7 @@ int imprimirMascSubred(int ds, struct ifreq* nic)
 {
 	if (ioctl(ds,SIOCGIFNETMASK, nic)==-1)
 	{
-			perror("\nError al obtener la Mascara de Red");
+		perror("\nError al obtener la Mascara de Red");
 	}
 	else
 	{
@@ -113,10 +113,12 @@ int imprimirMascSubred(int ds, struct ifreq* nic)
 // Imprime la dirección MAC
 int imprimirMAC(int ds, struct ifreq* nic)
 {
-	if (ioctl(ds,SIOCGIFHWADDR, nic)==-1){
-			perror("\nError al obtener la MAC");
+	if (ioctl(ds,SIOCGIFHWADDR, nic)==-1)
+	{
+		perror("\nError al obtener la MAC");
 	}
-	else{
+	else
+	{
 		memcpy(MACorigen,nic->ifr_hwaddr.sa_data+0,6);
 		int i;
 		printf("La dirección MAC es: ");
@@ -157,7 +159,7 @@ int obtenDatos(int ds){
 		exit(0);
 	}
 	else{
-		indice=nic.ifr_ifindex;
+		indice = nic.ifr_ifindex;
 		printf("\nEl indice es: %d\n", indice);
 		imprimirMAC(ds, &nic);
 		imprimirIP(ds, &nic);
@@ -212,6 +214,7 @@ void recibeTrama (int ds, unsigned char *trama)
 }
 
 int main(int argc, char** argv){
+
 	int a;
 	int packet_socket, index,tam;
 
@@ -241,9 +244,9 @@ int main(int argc, char** argv){
 
 		direccionDelProtocoloDestino[3]=3;
 		estructuraTrama(EnviaTrama);
-		printf("\n enviando trama\n");
+		printf("Enviando Trama.\n");
 		enviaTramaF(packet_socket,index,EnviaTrama);
-		printf("\n reciviendo \n");
+		printf("Recibiendo Trama.\n");
 		recibeTrama(packet_socket,RecibeTrama);
 	}
 	

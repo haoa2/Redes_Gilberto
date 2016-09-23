@@ -5,9 +5,9 @@
 #include <linux/if_packet.h>
 #include <net/ethernet.h> /* the L2 protocols */
 #include <unistd.h>
-#include<sys/ioctl.h>
-#include<net/if.h>
-#include<string.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <string.h>
 
 unsigned char MACORIGEN[6], MACDESTINO[6]={0xff,0xff,0xff,0xff,0xff,0xff};
 unsigned char mask[4];
