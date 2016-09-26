@@ -179,6 +179,8 @@ int obtenDatos(int ds){
 	return indice;
 }
 
+
+
 void enviaTramaF(int ds, int index, unsigned char *trama)
 {
 	int tam;
@@ -220,11 +222,12 @@ int recibeTrama (int ds, unsigned char *trama)
 	}
 }
 
-void log_trama(MYSQL * con, unsigned char* trama, int size)
+void log_trama(MYSQL * con, unsigned char* trama, int size, int ds)
 {
 	char str[BUFFER_SIZE];
 	char *temp = "INSERT INTO Logs VALUES('','";
-	char *temp2= "',NOW())";
+	char *comma = "','";
+	char *temp3= "',NOW())";
 	int i=0;
 	int index = 0;
 	for (i=0; i<size; i++)
@@ -232,11 +235,13 @@ void log_trama(MYSQL * con, unsigned char* trama, int size)
 		index += snprintf(&str[index], BUFFER_SIZE, "%.2x ", trama[i]);
 	}
 
-	char * str3 = (char *) malloc(1 + strlen(temp)+ strlen(temp2)+ strlen(str) );
+	char * str3 = (char *) malloc(255);
 	
-	strcpy(str3, temp);
-    strcat(str3, str);
-    strcat(str3, temp2);
+	strcpy(str3, temp); // 			INSERT INTO Logs VALUES('','
+    strcat(str3, reinterpret_cast<const char*>(IPorigen)); // 		0.0.0.0
+    strcat(str3, comma); // 		','
+    strcat(str3, reinterpret_cast<const char*>(MACorigen)); //		XX:XX:XX:XX
+    strcat(str3, temp3); //			', NOW())
 
 	if (mysql_query(con, str3)) 
   	{
@@ -249,13 +254,6 @@ void log_trama(MYSQL * con, unsigned char* trama, int size)
   		printf("Se guardó correctamente la trama.\n");
   	}
 }
-
-
-/*
-	Main 
-
-	Abstract: We open MySQL connection, we open socket, we get data, we save data on MySQL.
-*/
 int main(int argc, char** argv){
 
 	int a;
@@ -291,11 +289,10 @@ int main(int argc, char** argv){
 		estructuraTrama(EnviaTrama);
 		//printf("Enviando Trama.\n");
 		//enviaTramaF(packet_socket,index,EnviaTrama);
-		while(1)
-		{
+		while(1){
 			printf("Recibiendo Trama.\n");
 			int temp = recibeTrama(packet_socket,RecibeTrama);
-			log_trama(con,RecibeTrama,temp);
+			log_trama(con,RecibeTrama,temp, packet_socket);
 		}
 	}
 	
@@ -304,7 +301,3 @@ int main(int argc, char** argv){
 	// End of Main
 	return 0;
 }
-
-/*
-	EOF
-*/
