@@ -8,6 +8,8 @@
 	
 	Humberto Alcocer.
 */
+
+// Librerías necesarias
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +20,13 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <string.h>
+#include <memory.h>
 #include <mysql/mysql.h>
+
+// Constants
+#ifndef BUFFER_SIZE
+#define BUFFER_SIZE 2048
+#endif
 
 /*
 	Global Variables.
@@ -27,8 +35,8 @@ unsigned char MACorigen[6], MACbroadcast[6]={0xff,0xff,0xff,0xff,0xff,0xff};
 unsigned char ethertype[2]={0x08,0x06};
 unsigned char IPorigen[4];
 unsigned char MascRed[4];
-unsigned char EnviaTrama[1514];
-unsigned char RecibeTrama[1514];
+unsigned char EnviaTrama[BUFFER_SIZE];
+unsigned char RecibeTrama[BUFFER_SIZE];
 unsigned char tipoDeHw[2]={0x00,0x01};
 unsigned char tipoDEProtocolo[2]={0x08,0x00};
 unsigned char longDireccionDehw[1]={6};
@@ -46,7 +54,7 @@ unsigned char DireccionDeMiCelular[4]={0xc0,0xa8,0x64,0x03};
 */
 
 // Imprimir en Formato IP xxx.xxx.xxx.xxx
-void printIP(int* ip)
+void printIP(unsigned char* ip)
 {
 	// TODO: Validation
 	for (int i = 0; i < 3; ++i)
@@ -67,9 +75,6 @@ void printHex(unsigned char* hex)
 	printf("%.2x", hex[5]);
 }
 
-/*
-	Obtain Data
-*/
 // Imprimir la trama
 void imprimirTrama(unsigned char *trama, int tam)
 {
@@ -79,6 +84,9 @@ void imprimirTrama(unsigned char *trama, int tam)
 	}
 }
 
+/*
+	Obtain Data
+*/
 // Imprime la IP
 int imprimirIP(int ds, struct ifreq* nic)
 {
@@ -91,6 +99,7 @@ int imprimirIP(int ds, struct ifreq* nic)
 		memcpy(IPorigen,nic->ifr_addr.sa_data+2,4);
 		printf("La IP es: ");
 		printIP(IPorigen);
+		printf("\n");
 	}
 }
 
@@ -107,6 +116,7 @@ int imprimirMascSubred(int ds, struct ifreq* nic)
 		memcpy(MascRed,nic->ifr_netmask.sa_data+2,4);
 		printf("La Máscara de Subred es: ");
 		printIP(MascRed);
+		printf("\n");
 	}
 }
 
@@ -123,10 +133,11 @@ int imprimirMAC(int ds, struct ifreq* nic)
 		int i;
 		printf("La dirección MAC es: ");
 		printHex(MACorigen);
+		printf("\n");
 	}
 }
 
-void estructuraTrama(unsigned char *trama)//okay
+void estructuraTrama(unsigned char *trama)
 {
 	memcpy(trama+0, MACbroadcast,6);
 	memcpy(trama+6, MACorigen,6);
@@ -141,7 +152,7 @@ void estructuraTrama(unsigned char *trama)//okay
 	memcpy(trama+32,DireccionDehwDestino,6);
 	memcpy(trama+38,DireccionDeMiCelular,4);
 	//memcpy(trama+38,direccionDelProtocoloDestino,4);
-	//memcpy(trama+14,  "Gerardo S C",19);
+	//memcpy(trama+14,  "Pedro Picapiedra no vive en México",19);
 }
 
 int obtenDatos(int ds){
@@ -149,18 +160,18 @@ int obtenDatos(int ds){
 	struct ifreq nic;
 	char nombre[10];
 	int indice;
-	printf("\nIngrese un nombre: ");
-	gets(nombre);
+	printf("\nIngrese el nombre de la interfaz de Red: ");
+	scanf(" %s",nombre);
 	//strcpy ==> string copy
 	strcpy(nic.ifr_name, nombre);
 	if (ioctl(ds,SIOCGIFINDEX,&nic)==-1)//okay
 	{
-		perror("\nError al obtener el indice");
+		perror("\nError al obtener el índice");
 		exit(0);
 	}
 	else{
 		indice = nic.ifr_ifindex;
-		printf("\nEl indice es: %d\n", indice);
+		printf("\nEl índice es: %d\n", indice);
 		imprimirMAC(ds, &nic);
 		imprimirIP(ds, &nic);
 		imprimirMascSubred(ds, &nic);
@@ -189,30 +200,62 @@ void enviaTramaF(int ds, int index, unsigned char *trama)
 }
 
 
-void recibeTrama (int ds, unsigned char *trama)
+int recibeTrama (int ds, unsigned char *trama)
 {
 	int tam;
-	while(1)
+	tam=recvfrom(ds, trama, BUFFER_SIZE, 0, NULL, 0);
+
+	if(tam==-1)
 	{
-		printf("entre ala trama \n");
-		tam=recvfrom(ds, trama, 1514, 0, NULL, 0);
-		if(tam==-1)
+		perror("\nError al recibir la trama.");
+		exit(0);
+	}
+	else
+	{
+		if(!memcmp(trama+0, MACorigen, 6) || !memcmp(trama+6, MACorigen, 6))
 		{
-			perror("\nError al Enviar");
-			exit(0);
-		}
-		else{ 
-			printf("\n");
-			if(!memcmp(trama+0, MACorigen, 6) || !memcmp(trama+6, MACorigen, 6)){
-			printf("\nJuan Recibe Trama: \n");
 			imprimirTrama(trama, tam);
-			printf("\n\n");
-			//break;
-			}
+			return tam;
 		}
 	}
 }
 
+void log_trama(MYSQL * con, unsigned char* trama, int size)
+{
+	char str[BUFFER_SIZE];
+	char *temp = "INSERT INTO Logs VALUES('','";
+	char *temp2= "',NOW())";
+	int i=0;
+	int index = 0;
+	for (i=0; i<size; i++)
+	{
+		index += snprintf(&str[index], BUFFER_SIZE, "%.2x ", trama[i]);
+	}
+
+	char * str3 = (char *) malloc(1 + strlen(temp)+ strlen(temp2)+ strlen(str) );
+	
+	strcpy(str3, temp);
+    strcat(str3, str);
+    strcat(str3, temp2);
+
+	if (mysql_query(con, str3)) 
+  	{
+  		perror("Hubo un error ejecutando la sentencia SQL.");
+  	    mysql_close(con);
+  	    exit(1);
+  	}
+  	else
+  	{
+  		printf("Se guardó correctamente la trama.\n");
+  	}
+}
+
+
+/*
+	Main 
+
+	Abstract: We open MySQL connection, we open socket, we get data, we save data on MySQL.
+*/
 int main(int argc, char** argv){
 
 	int a;
@@ -221,12 +264,13 @@ int main(int argc, char** argv){
 	MYSQL *con = mysql_init(NULL);
 	if (con == NULL)
 	{
-		return -1;
+		perror("\nHa ocurrido un error tratando de iniciar el cliente de MySQL.");
+		exit(0);
 	}
 	
-	if (mysql_real_connect("localhost","root","","ARPLogs",0,NULL,0) == NULL)
+	if (mysql_real_connect(con,"localhost","root","","ARPLogs",0,NULL,0) == NULL)
 	{
-		return -1;
+		perror("\nHa ocurrido un error conectando con la Base de Datos.");
 	}
 
 	packet_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL) );
@@ -238,16 +282,21 @@ int main(int argc, char** argv){
 	}
 	else
 	{
+		printf("información de la Interfaz:\n");
 		index = obtenDatos(packet_socket);
-		
+		printf("\n");
 		memcpy(direccionDelProtocoloDestino,IPorigen,4);
 
 		direccionDelProtocoloDestino[3]=3;
 		estructuraTrama(EnviaTrama);
-		printf("Enviando Trama.\n");
-		enviaTramaF(packet_socket,index,EnviaTrama);
-		printf("Recibiendo Trama.\n");
-		recibeTrama(packet_socket,RecibeTrama);
+		//printf("Enviando Trama.\n");
+		//enviaTramaF(packet_socket,index,EnviaTrama);
+		while(1)
+		{
+			printf("Recibiendo Trama.\n");
+			int temp = recibeTrama(packet_socket,RecibeTrama);
+			log_trama(con,RecibeTrama,temp);
+		}
 	}
 	
 	mysql_close(con);
@@ -255,3 +304,7 @@ int main(int argc, char** argv){
 	// End of Main
 	return 0;
 }
+
+/*
+	EOF
+*/
